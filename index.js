@@ -167,4 +167,3 @@ cron.schedule('0 5 * * *', async () => {
 });
 
 client.login(token);
-
