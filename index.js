@@ -11,7 +11,7 @@ const {
   SlashCommandBuilder
 } = require('discord.js');
 const { REST } = require('@discordjs/rest');
-const cron = require('node-cron'); // 🕐 для автоматичного ресету о 05:00
+const cron = require('node-cron');
 
 const token = process.env.TOKEN;
 const clientId = process.env.CLIENT_ID;
@@ -28,13 +28,13 @@ let cars = [
   { name: 'Scania R730 #2', free: true },
   { name: 'Scania R730 #3', free: true },
   { name: 'Scania R730 #4', free: true },
-  { name: 'Scania R730 #5', free: true }, // 🆕 нова Scania
+  { name: 'Scania R730 #5', free: true },
   { name: 'Freightliner Century #1', free: true },
   { name: 'Freightliner Century #2', free: true },
   { name: 'Freightliner Century #3', free: true },
 ];
 
-// 🧩 Реєстрація команд
+// 🧩 Команди
 const commands = [
   new SlashCommandBuilder()
     .setName('бронь')
@@ -44,6 +44,7 @@ const commands = [
     .setDescription('Скинути всі бронювання (для адміністратора)')
 ].map(cmd => cmd.toJSON());
 
+// 📦 Реєстрація команд
 const rest = new REST({ version: '10' }).setToken(token);
 (async () => {
   try {
@@ -62,12 +63,11 @@ function getCarList() {
     .setDescription('Натисни кнопку, щоб забронювати або звільнити фуру.')
     .setColor('#00AAFF');
 
-  let desc = cars.map(car =>
+  const desc = cars.map(car =>
     `${car.free ? '🟢 **Вільна**' : `🔴 **Зайнята** (${car.userTag})`} — ${car.name}`
   ).join('\n');
   embed.addFields({ name: 'Статус авто:', value: desc });
 
-  // Розбиваємо кнопки на ряди по 5
   const rows = [];
   for (let i = 0; i < cars.length; i += 5) {
     const row = new ActionRowBuilder();
@@ -85,12 +85,11 @@ function getCarList() {
   return { embeds: [embed], components: rows };
 }
 
-// 🟢 Коли бот запущений
+// 🔹 Події
 client.once('ready', () => {
   console.log(`✅ Увійшов як ${client.user.tag}`);
 });
 
-// 🎯 Обробка натискань
 client.on('interactionCreate', async (interaction) => {
   if (!interaction.isChatInputCommand() && !interaction.isButton()) return;
 
@@ -99,7 +98,7 @@ client.on('interactionCreate', async (interaction) => {
     await interaction.reply(getCarList());
   }
 
-  // ♻️ /reset (адмін)
+  // ♻️ /reset
   if (interaction.isChatInputCommand() && interaction.commandName === 'reset') {
     cars.forEach(c => {
       c.free = true;
@@ -109,7 +108,7 @@ client.on('interactionCreate', async (interaction) => {
     await interaction.reply({ content: '🔄 Усі авто знову вільні!', ephemeral: true });
   }
 
-  // 🚗 Натискання кнопки
+  // 🚗 Клік по кнопці
   if (interaction.isButton()) {
     const index = parseInt(interaction.customId.split('_')[1]);
     const car = cars[index];
@@ -117,17 +116,16 @@ client.on('interactionCreate', async (interaction) => {
     const userTag = `<@${userId}>`;
     const channel = await client.channels.fetch(channelId);
 
-    // 🔒 Якщо користувач уже має броньовану фуру
-    const alreadyBooked = cars.find(c => c.userId === userId);
-    if (alreadyBooked && alreadyBooked !== car) {
+    // 🔒 Якщо авто вже зайняте іншим користувачем
+    if (!car.free && car.userId !== userId) {
       await interaction.reply({
-        content: `🚫 Ти вже забронював **${alreadyBooked.name}**. Спочатку звільни її!`,
+        content: `🚫 ${car.name} вже заброньована іншим користувачем!`,
         ephemeral: true
       });
       return;
     }
 
-    // ✅ Якщо користувач звільняє свою
+    // 🔓 Якщо користувач звільняє свою фуру
     if (!car.free && car.userId === userId) {
       car.free = true;
       car.userId = null;
@@ -137,10 +135,11 @@ client.on('interactionCreate', async (interaction) => {
       return;
     }
 
-    // 🚫 Якщо вже зайнята іншою людиною
-    if (!car.free && car.userId !== userId) {
+    // 🚗 Якщо користувач вже має іншу броню
+    const alreadyBooked = cars.find(c => c.userId === userId);
+    if (alreadyBooked && alreadyBooked !== car) {
       await interaction.reply({
-        content: `🚫 ${car.name} вже заброньована іншим користувачем!`,
+        content: `🚫 Ти вже забронював **${alreadyBooked.name}**. Спочатку звільни її!`,
         ephemeral: true
       });
       return;
@@ -155,7 +154,7 @@ client.on('interactionCreate', async (interaction) => {
   }
 });
 
-// 🕔 Автоматичне скидання броні о 05:00 ранку
+// 🕔 Автоматичне скидання броні о 05:00
 cron.schedule('0 5 * * *', async () => {
   cars.forEach(c => {
     c.free = true;
@@ -168,3 +167,4 @@ cron.schedule('0 5 * * *', async () => {
 });
 
 client.login(token);
+
