@@ -23,20 +23,27 @@ const client = new Client({
   partials: [Partials.Message, Partials.Channel]
 });
 
-let carsFile = './cars.json';
+const carsFile = './cars.json';
 
-// якщо немає файлу — створюємо
+// Якщо немає файлу — створюємо новий автопарк
 if (!fs.existsSync(carsFile)) {
-  fs.writeFileSync(carsFile, JSON.stringify([
-    { name: 'Scania R730 #1', free: true },
-    { name: 'Scania R730 #2', free: true },
-    { name: 'Scania R730 #3', free: true },
-    { name: 'Scania R730 #4', free: true },
-    { name: 'Scania R730 #5', free: true },
-    { name: 'Freightliner Century #1', free: true },
-    { name: 'Freightliner Century #2', free: true },
-    { name: 'Freightliner Century #3', free: true }
-  ], null, 2));
+  fs.writeFileSync(
+    carsFile,
+    JSON.stringify(
+      [
+        { name: 'Scania R730 #1', free: true },
+        { name: 'Scania R730 #2', free: true },
+        { name: 'Scania R730 #3', free: true },
+        { name: 'Scania R730 #4', free: true },
+        { name: 'Scania R730 #5', free: true },
+        { name: 'Freightliner Century #1', free: true },
+        { name: 'Freightliner Century #2', free: true },
+        { name: 'Freightliner Century #3', free: true }
+      ],
+      null,
+      2
+    )
+  );
 }
 
 function loadCars() {
@@ -47,9 +54,7 @@ function saveCars(cars) {
 }
 
 const commands = [
-  new SlashCommandBuilder()
-    .setName('бронь')
-    .setDescription('Відкрити меню бронювання авто')
+  new SlashCommandBuilder().setName('бронь').setDescription('Відкрити меню бронювання авто')
 ].map(cmd => cmd.toJSON());
 
 const rest = new REST({ version: '10' }).setToken(token);
@@ -68,7 +73,7 @@ function getCarList(cars) {
     .setDescription('Натисни кнопку, щоб забронювати або звільнити авто.')
     .setColor('#00ADEF');
 
-  let desc = cars
+  const desc = cars
     .map(car =>
       `${car.free ? '🟢 **Вільна**' : `🔴 **Зайнята** (<@${car.userId}>)`} — ${car.name}`
     )
@@ -98,30 +103,45 @@ client.once('ready', () => {
 client.on('interactionCreate', async interaction => {
   if (!interaction.isChatInputCommand() && !interaction.isButton()) return;
 
-  // /бронь
+  // 📦 /бронь
   if (interaction.isChatInputCommand() && interaction.commandName === 'бронь') {
     const cars = loadCars();
     await interaction.reply(getCarList(cars));
     return;
   }
 
-  // Кнопки
+  // 🚗 Кнопки
   if (interaction.isButton()) {
     await interaction.deferUpdate();
 
-    const cars = loadCars();
+    // Завжди беремо останній стан
+    let cars = loadCars();
     const index = parseInt(interaction.customId.split('_')[1]);
     const car = cars[index];
     const userId = interaction.user.id;
     const userTag = `<@${userId}>`;
     const channel = await client.channels.fetch(channelId);
 
+    // 🔒 Перевірка: чи вже є бронь у цього користувача
     const existing = cars.find(c => c.userId === userId && !c.free);
     if (existing && existing !== car) {
-      await interaction.followUp({ content: `🚫 Ти вже забронював **${existing.name}**. Спочатку звільни її.`, ephemeral: true });
+      await interaction.followUp({
+        content: `🚫 Ти вже забронював **${existing.name}**. Спочатку звільни її.`,
+        ephemeral: true
+      });
       return;
     }
 
+    // 🔐 Якщо чужа фура — відмовити
+    if (!car.free && car.userId !== userId) {
+      await interaction.followUp({
+        content: `🚫 **${car.name}** вже заброньована іншим користувачем!`,
+        ephemeral: true
+      });
+      return;
+    }
+
+    // 🧹 Якщо звільняє свою
     if (!car.free && car.userId === userId) {
       car.free = true;
       delete car.userId;
@@ -131,16 +151,22 @@ client.on('interactionCreate', async interaction => {
       return;
     }
 
-    if (!car.free && car.userId !== userId) {
-      await interaction.followUp({ content: `🚫 **${car.name}** вже заброньована іншим користувачем!`, ephemeral: true });
+    // ✅ Якщо фура вільна — бронюємо
+    // Повторно читаємо стан з файлу, щоб переконатись, що ніхто не взяв за цей час
+    cars = loadCars();
+    if (!cars[index].free) {
+      await interaction.followUp({
+        content: `🚫 **${cars[index].name}** щойно заброньована іншим користувачем!`,
+        ephemeral: true
+      });
       return;
     }
 
-    car.free = false;
-    car.userId = userId;
+    cars[index].free = false;
+    cars[index].userId = userId;
     saveCars(cars);
     await interaction.editReply(getCarList(cars));
-    await channel.send(`✅ ${userTag} забронював **${car.name}**`);
+    await channel.send(`✅ ${userTag} забронював **${cars[index].name}**`);
   }
 });
 
@@ -156,4 +182,3 @@ cron.schedule('0 2 * * *', async () => {
 });
 
 client.login(token);
-
