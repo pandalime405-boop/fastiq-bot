@@ -31,7 +31,7 @@ if (!fs.existsSync(carsFile)) {
     carsFile,
     JSON.stringify(
       [
-        { name: 'Чужих ботів красти не красиво!!! (АВТОР: РУСЛАН МАНДАРИН)', free: true },
+        { name: 'Scania R730 #1', free: true },
         { name: 'Scania R730 #2', free: true },
         { name: 'Scania R730 #3', free: true },
         { name: 'Scania R730 #4', free: true },
@@ -182,4 +182,5 @@ cron.schedule('0 2 * * *', async () => {
 });
 
 client.login(token);
+
 
